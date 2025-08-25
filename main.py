@@ -37,7 +37,6 @@ class GUI:
         self.output_label = tk.Label(master, text="Select Output Directory:")
         self.output_label.pack()
 
-        import os
         download_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
         self.output_entry = tk.Entry(master, width=50)
         self.output_entry.insert(0, download_dir)
