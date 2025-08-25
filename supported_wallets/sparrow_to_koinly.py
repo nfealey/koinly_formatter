@@ -10,14 +10,14 @@ from .wallet_utils import BaseWalletConverter
 
 class SparrowToKoinly(BaseWalletConverter):
     """Converter for Sparrow wallet exports to Koinly format.
-    
+
     Sparrow wallet exports transaction history as a CSV file containing
     date, value (in satoshis), label, and transaction ID information.
     This converter transforms it to Koinly's expected format.
     """
     def __init__(self, source_file: str, output_dir: str) -> None:
         """Initialize Sparrow wallet converter.
-        
+
         Args:
             source_file: Path to Sparrow wallet export CSV file
             output_dir: Directory where converted file will be saved
@@ -26,15 +26,15 @@ class SparrowToKoinly(BaseWalletConverter):
 
     def convert(self) -> str:
         """Convert Sparrow wallet export to Koinly format.
-        
+
         Reads the Sparrow CSV export and transforms it to include:
         - Formatted dates in Koinly's expected format
         - Amounts converted from satoshis to BTC
         - Transaction hashes and labels preserved
-        
+
         Returns:
             str: Path to the generated output file
-            
+
         Raises:
             FileNotFoundError: If source file not found
             ValueError: If CSV has invalid format or missing columns
@@ -56,9 +56,14 @@ class SparrowToKoinly(BaseWalletConverter):
                 
             # Validate required columns exist
             required_columns = ["Date (UTC)", "Value", "Label", "Txid"]
-            missing_columns = [col for col in required_columns if col not in df.columns]
+            missing_columns = [
+                col for col in required_columns if col not in df.columns
+            ]
             if missing_columns:
-                raise ValueError(f"Missing required columns in Sparrow CSV: {', '.join(missing_columns)}")
+                raise ValueError(
+                    f"Missing required columns in Sparrow CSV: "
+                    f"{', '.join(missing_columns)}"
+                )
                 
             # Check if dataframe has any data
             if df.empty:
@@ -68,23 +73,29 @@ class SparrowToKoinly(BaseWalletConverter):
             df_koinly = pd.DataFrame()
             
             # Filter out rows with invalid dates
-            df_filtered = df[pd.to_datetime(df["Date (UTC)"], errors="coerce").notna()]
+            df_filtered = df[
+                pd.to_datetime(df["Date (UTC)"], errors="coerce").notna()
+            ]
             if df_filtered.empty:
                 raise ValueError("No valid dates found in source data")
                 
             # Convert dates
             try:
-                df_koinly["Koinly Date"] = pd.to_datetime(df_filtered["Date (UTC)"]).dt.strftime(
-                    "%Y-%m-%d %H:%M UTC"
-                )
+                df_koinly["Koinly Date"] = pd.to_datetime(
+                    df_filtered["Date (UTC)"]
+                ).dt.strftime("%Y-%m-%d %H:%M UTC")
             except Exception as e:
                 raise ValueError(f"Error converting dates: {e}")
 
             # Convert amounts from satoshis to BTC
             try:
                 # Use base class method for conversion
-                amounts_btc = df_filtered["Value"].apply(lambda x: self.sats_to_btc(x))
-                df_koinly["Amount"] = amounts_btc.apply(lambda x: self.format_btc(x))
+                amounts_btc = df_filtered["Value"].apply(
+                    lambda x: self.sats_to_btc(x)
+                )
+                df_koinly["Amount"] = amounts_btc.apply(
+                    lambda x: self.format_btc(x)
+                )
             except Exception as e:
                 raise ValueError(f"Error converting amounts: {e}")
                 

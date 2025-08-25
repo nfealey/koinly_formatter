@@ -143,7 +143,7 @@ class BaseWalletConverter(ABC):
 
     @abstractmethod
     def convert(self) -> str:
-        """Convert wallet trasnactions to Koinly format.
+        """Convert wallet transactions to Koinly format.
 
         This method must be implemented by subclasses to handle specific
         wallet export formats.
