@@ -1,14 +1,47 @@
+"""Sparrow wallet to Koinly format converter.
+
+This module handles the conversion of Sparrow wallet export files to 
+Koinly-compatible CSV format.
+"""
+
 import pandas as pd
 from .wallet_utils import BaseWalletConverter
 
 
 class SparrowToKoinly(BaseWalletConverter):
+    """Converter for Sparrow wallet exports to Koinly format.
+    
+    Sparrow wallet exports transaction history as a CSV file containing
+    date, value (in satoshis), label, and transaction ID information.
+    This converter transforms it to Koinly's expected format.
+    """
     def __init__(self, source_file: str, output_dir: str) -> None:
+        """Initialize Sparrow wallet converter.
+        
+        Args:
+            source_file: Path to Sparrow wallet export CSV file
+            output_dir: Directory where converted file will be saved
+        """
         super().__init__(source_file, output_dir)
 
     def convert(self) -> str:
+        """Convert Sparrow wallet export to Koinly format.
+        
+        Reads the Sparrow CSV export and transforms it to include:
+        - Formatted dates in Koinly's expected format
+        - Amounts converted from satoshis to BTC
+        - Transaction hashes and labels preserved
+        
+        Returns:
+            str: Path to the generated output file
+            
+        Raises:
+            FileNotFoundError: If source file not found
+            ValueError: If CSV has invalid format or missing columns
+            RuntimeError: If processing fails
+        """
         try:
-            # Use base class validation
+            # Validate input file exists and is a CSV
             self.validate_source_file()
                 
             # Load the Sparrow CSV

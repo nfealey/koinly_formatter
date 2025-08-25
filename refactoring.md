@@ -12,12 +12,6 @@ This document outlines the remaining refactoring opportunities in the codebase.
   - Decimal precision settings
   - Export format options
 
-### 2. Create Requirements File
-**New file**: `requirements.txt`
-```
-pandas>=1.3.0
-pytz>=2021.1
-```
 
 ### 3. Enhanced Base Converter Class
 **Enhancement to**: `supported_wallets/wallet_utils.py`

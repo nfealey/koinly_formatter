@@ -1,3 +1,9 @@
+"""Zeus wallet to Koinly format converter.
+
+This module handles the conversion of Zeus wallet export files (invoices.csv,
+payments.csv, and onchain.csv) to Koinly-compatible CSV format.
+"""
+
 import os
 import csv
 import logging
@@ -8,10 +14,28 @@ logger = logging.getLogger(__name__)
 
 
 class ZeusToKoinly(BaseWalletConverter):
+    """Converter for Zeus wallet exports to Koinly format.
+    
+    Zeus wallet exports transactions in three separate CSV files:
+    - invoices.csv: Lightning invoices (incoming payments)
+    - payments.csv: Lightning payments (outgoing payments)  
+    - onchain.csv: On-chain Bitcoin transactions
+    
+    This converter combines all three files into a single Koinly-compatible CSV.
+    """
     def __init__(self, source_file: str, output_dir: str, 
                  invoices_path: Optional[str] = None, 
                  payments_path: Optional[str] = None, 
                  onchain_path: Optional[str] = None) -> None:
+        """Initialize Zeus wallet converter.
+        
+        Args:
+            source_file: Not used for Zeus (kept for compatibility)
+            output_dir: Directory where converted file will be saved
+            invoices_path: Path to invoices.csv file
+            payments_path: Path to payments.csv file  
+            onchain_path: Path to onchain.csv file
+        """
         super().__init__(source_file, output_dir)
         self.invoices_path: Optional[str] = invoices_path
         self.payments_path: Optional[str] = payments_path
@@ -19,7 +43,20 @@ class ZeusToKoinly(BaseWalletConverter):
 
 
     def convert(self) -> str:
-        # Use provided paths or check for default files
+        """Convert Zeus wallet exports to Koinly format.
+        
+        Processes three CSV files (invoices, payments, onchain) and combines
+        them into a single Koinly-compatible CSV file.
+        
+        Returns:
+            str: Path to the generated output file
+            
+        Raises:
+            FileNotFoundError: If required CSV files are not found
+            ValueError: If CSV files have invalid format or data
+            RuntimeError: If processing fails
+        """
+        # Use provided paths or check for default files in current directory
         try:
             if self.invoices_path is None:
                 if os.path.exists('invoices.csv'):
@@ -62,7 +99,7 @@ class ZeusToKoinly(BaseWalletConverter):
                 if not file_path.lower().endswith('.csv'):
                     raise ValueError(f"{file_type} file must be a CSV file: {file_path}")
         
-            # a list of keys which can be converted gracefully from import file to output file
+            # Mapping of Zeus field names to Koinly field names
             convert_keys={
                 'Amount Paid (sat)':'Received Amount',
                 'Payment Hash':'TxHash',
@@ -70,11 +107,11 @@ class ZeusToKoinly(BaseWalletConverter):
                 'Creation Date':'Date',
                 'Timestamp':'Date',
             }
-            # ignore these keys
-            ignore_keys={'Expiry','Payment Request'} # skip
-            # a list of all keys which will be exported. More is added to this later
+            # Fields to ignore from Zeus exports (not needed for Koinly)
+            ignore_keys={'Expiry','Payment Request'}
+            # Initialize export keys - more will be added dynamically
             self.export_keys={'Description','Received Currency','Sent Currency'}
-            # keys which should be concatenated into the notes field
+            # Fields that should be combined into the Description field
             notes_keys={'Memo','Note','Destination'}
 
             # Process each CSV file
@@ -98,7 +135,7 @@ class ZeusToKoinly(BaseWalletConverter):
                                         notes_field=notes_field+notes_add
                                     continue
                                 elif key in {'Amount Paid (sat)'} and csv_type=='INVOICES':
-                                    # special handling for this field, koinly wants BTC not SATs
+                                    # Convert satoshis to BTC for received invoices
                                     try:
                                         converted=self.sats_to_btc(int(value))
                                         write_value=self.format_btc(converted)
@@ -107,7 +144,7 @@ class ZeusToKoinly(BaseWalletConverter):
                                     except ValueError:
                                         raise ValueError(f"Invalid amount value in {csv_type} row {row_num}: '{value}'")
                                 elif key in {'Amount Paid (sat)'} and csv_type=='PAYMENTS':
-                                    # special handling for this field, koinly wants BTC not SATs
+                                    # Convert satoshis to BTC for sent payments
                                     try:
                                         converted=self.sats_to_btc(int(value))
                                         write_value=self.format_btc(converted)
@@ -116,7 +153,7 @@ class ZeusToKoinly(BaseWalletConverter):
                                     except ValueError:
                                         raise ValueError(f"Invalid amount value in {csv_type} row {row_num}: '{value}'")
                                 elif key=='Amount (sat)':
-                            # special handling for this field, figure out if tx is inbound or outbound
+                                    # On-chain transactions: positive = received, negative = sent
                                     try:
                                         numbered=int(value)
                                         if numbered>0:
@@ -132,10 +169,10 @@ class ZeusToKoinly(BaseWalletConverter):
                                     except ValueError:
                                         raise ValueError(f"Invalid amount value in {csv_type} row {row_num}: '{value}'")
                                 elif key=='Total Fees (sat)':
-                            # special handling for this field, koinly wants BTC not SATs
+                                    # Convert fee amount from satoshis to BTC
                                     try:
                                         numbered=int(value)
-                                        if numbered>0: # outgoing payment, you paid a fee
+                                        if numbered>0:  # Only record fees for outgoing transactions
                                             converted=abs(self.sats_to_btc(numbered))
                                             write_value=self.format_btc(converted)
                                             write_key='Fee Amount'

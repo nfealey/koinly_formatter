@@ -1,4 +1,10 @@
 
+"""Koinly Converter GUI Application.
+
+This module provides a graphical user interface for converting various
+cryptocurrency wallet export formats to Koinly-compatible CSV format.
+"""
+
 import importlib
 import tkinter as tk
 from tkinter import filedialog
@@ -11,7 +17,18 @@ from typing import Dict, Optional
 
 
 class GUI:
+    """Main GUI class for the Koinly Converter application.
+    
+    Provides a user-friendly interface for selecting wallet export files,
+    choosing the wallet format, and converting to Koinly format with
+    real-time validation and progress feedback.
+    """
     def __init__(self, master: tk.Tk) -> None:
+        """Initialize the GUI application.
+        
+        Args:
+            master: The root Tkinter window
+        """
         self.master: tk.Tk = master
         master.title("Koinly Converter")
         master.geometry("600x500")
@@ -115,6 +132,7 @@ class GUI:
         self.validate_inputs()
 
     def browse_source(self) -> None:
+        """Open file dialog to select source CSV file."""
         filename = filedialog.askopenfilename(
             title="Select Source CSV File",
             filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
@@ -126,6 +144,7 @@ class GUI:
             self.update_status(f"Selected: {os.path.basename(filename)}")
 
     def browse_output(self) -> None:
+        """Open directory dialog to select output directory."""
         directory = filedialog.askdirectory(
             title="Select Output Directory"
         )
@@ -136,7 +155,14 @@ class GUI:
             self.update_status(f"Output directory: {directory}")
 
     def on_format_change(self, *args) -> None:
-        """Handle wallet format selection changes."""
+        """Handle wallet format selection changes.
+        
+        Updates UI elements based on selected wallet type. Zeus wallet
+        requires 3 files, so source file input is disabled.
+        
+        Args:
+            *args: Unused arguments from StringVar trace
+        """
         format_type = self.format_var.get()
         if format_type == "Zeus Wallet":
             self.format_info.config(text="Requires 3 CSV files (invoices, payments, onchain)")
@@ -150,7 +176,13 @@ class GUI:
             self.validate_inputs()
     
     def validate_inputs(self, event=None) -> None:
-        """Validate input fields and update indicators."""
+        """Validate input fields and update visual indicators.
+        
+        Shows checkmarks for valid inputs and X marks for invalid ones.
+        
+        Args:
+            event: Optional event from key binding
+        """
         format_type = self.format_var.get()
         
         # Validate source file
@@ -173,12 +205,20 @@ class GUI:
             self.output_valid.config(text="")
     
     def update_status(self, message: str) -> None:
-        """Update the status bar message."""
+        """Update the status bar message.
+        
+        Args:
+            message: Status message to display
+        """
         self.status_label.config(text=message)
         self.master.update_idletasks()
     
     def convert(self) -> None:
-        """Run the conversion in a separate thread to keep GUI responsive."""
+        """Run the conversion in a separate thread to keep GUI responsive.
+        
+        Starts progress indicator and launches conversion in background thread
+        to prevent UI freezing during file processing.
+        """
         # Disable convert button and start progress
         self.convert_button.config(state='disabled')
         self.progress_bar.start(10)
@@ -190,7 +230,11 @@ class GUI:
         thread.start()
     
     def _convert_thread(self) -> None:
-        """Actual conversion logic running in separate thread."""
+        """Actual conversion logic running in separate thread.
+        
+        Handles the conversion process and updates UI through thread-safe
+        methods. All UI updates use master.after() for thread safety.
+        """
         try:
             source_file = self.source_entry.get()
             output_dir = self.output_entry.get()
@@ -269,7 +313,7 @@ class GUI:
 
 
     def _show_zeus_info(self) -> None:
-        """Show Zeus wallet information dialog."""
+        """Show information dialog about Zeus wallet requirements."""
         messagebox.showinfo(
             "Zeus Wallet", 
             "Zeus wallet requires 3 CSV files:\n\n"
@@ -280,7 +324,11 @@ class GUI:
         )
     
     def _get_zeus_files(self) -> None:
-        """Get Zeus wallet files through file dialogs."""
+        """Get Zeus wallet files through file dialogs.
+        
+        Prompts user to select three required CSV files for Zeus wallet.
+        Sets self.zeus_files with results for thread communication.
+        """
         # Ask for the three required files
         invoices_file = filedialog.askopenfilename(
             title="Select invoices.csv file",
@@ -318,17 +366,31 @@ class GUI:
         }
     
     def _show_error(self, title: str, message: str) -> None:
-        """Show error dialog from thread."""
+        """Show error dialog from thread.
+        
+        Thread-safe method to display error messages.
+        
+        Args:
+            title: Error dialog title
+            message: Error message to display
+        """
         self.master.after(0, messagebox.showerror, title, message)
         self.master.after(0, self.update_status, f"Error: {title}")
     
     def _show_success(self, output_file: str) -> None:
-        """Show success dialog."""
+        """Show success dialog.
+        
+        Args:
+            output_file: Path to the generated output file
+        """
         messagebox.showinfo("Success", f"Conversion complete!\n\nOutput saved to:\n{output_file}")
         self.update_status(f"Success! Saved to: {os.path.basename(output_file)}")
     
     def _reset_ui(self) -> None:
-        """Reset UI after conversion."""
+        """Reset UI after conversion.
+        
+        Stops progress indicator and re-enables convert button.
+        """
         self.progress_bar.stop()
         self.convert_button.config(state='normal')
         if not hasattr(self, 'zeus_files') or self.zeus_files.get('success', False):
