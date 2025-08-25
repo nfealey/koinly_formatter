@@ -5,11 +5,12 @@ from tkinter import filedialog
 from tkinter import messagebox
 import os
 import sys
+from typing import Dict
 
 
 class GUI:
-    def __init__(self, master):
-        self.master = master
+    def __init__(self, master: tk.Tk) -> None:
+        self.master: tk.Tk = master
         master.title("Koinly Converter")
 
         self.source_label = tk.Label(master, text="Select Source File:")
@@ -23,8 +24,8 @@ class GUI:
         )
         self.browse_button.pack()
 
-        self.format_var = tk.StringVar()
-        self.wallet_types = {
+        self.format_var: tk.StringVar = tk.StringVar()
+        self.wallet_types: Dict[str, str] = {
             "Sparrow Wallet": "supported_wallets.sparrow_to_koinly.SparrowToKoinly",
             "Zeus Wallet": "supported_wallets.zeus_koinly.ZeusToKoinly",
         }
@@ -50,7 +51,7 @@ class GUI:
         self.convert_button = tk.Button(master, text="Convert", command=self.convert)
         self.convert_button.pack()
 
-    def browse_source(self):
+    def browse_source(self) -> None:
         filename = filedialog.askopenfilename(
             title="Select Source CSV File",
             filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
@@ -59,7 +60,7 @@ class GUI:
             self.source_entry.delete(0, tk.END)
             self.source_entry.insert(tk.END, filename)
 
-    def browse_output(self):
+    def browse_output(self) -> None:
         directory = filedialog.askdirectory(
             title="Select Output Directory"
         )
@@ -67,7 +68,7 @@ class GUI:
             self.output_entry.delete(0, tk.END)
             self.output_entry.insert(0, directory)
 
-    def convert(self):
+    def convert(self) -> None:
         source_file = self.source_entry.get()
         output_dir = self.output_entry.get()
         format = self.format_var.get()

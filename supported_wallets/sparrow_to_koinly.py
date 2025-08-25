@@ -3,10 +3,10 @@ from .wallet_utils import BaseWalletConverter
 
 
 class SparrowToKoinly(BaseWalletConverter):
-    def __init__(self, source_file, output_dir):
+    def __init__(self, source_file: str, output_dir: str) -> None:
         super().__init__(source_file, output_dir)
 
-    def convert(self):
+    def convert(self) -> str:
         try:
             # Use base class validation
             self.validate_source_file()

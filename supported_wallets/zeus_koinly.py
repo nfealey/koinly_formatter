@@ -1,17 +1,21 @@
 import os
 import csv
+from typing import Optional
 from .wallet_utils import BaseWalletConverter
 
 
 class ZeusToKoinly(BaseWalletConverter):
-    def __init__(self, source_file, output_dir, invoices_path=None, payments_path=None, onchain_path=None):
+    def __init__(self, source_file: str, output_dir: str, 
+                 invoices_path: Optional[str] = None, 
+                 payments_path: Optional[str] = None, 
+                 onchain_path: Optional[str] = None) -> None:
         super().__init__(source_file, output_dir)
-        self.invoices_path = invoices_path
-        self.payments_path = payments_path
-        self.onchain_path = onchain_path
+        self.invoices_path: Optional[str] = invoices_path
+        self.payments_path: Optional[str] = payments_path
+        self.onchain_path: Optional[str] = onchain_path
 
 
-    def convert(self):
+    def convert(self) -> str:
         # Use provided paths or check for default files
         try:
             if self.invoices_path is None:

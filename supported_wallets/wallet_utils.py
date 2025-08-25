@@ -3,16 +3,17 @@ import csv
 from datetime import datetime
 import pytz
 from abc import ABC, abstractmethod
+from typing import List, Set, Dict, Any
 
 
 class BaseWalletConverter(ABC):
     """Base class for wallet converters with shared functionality."""
     
-    def __init__(self, source_file, output_dir):
-        self.source_file = source_file
-        self.output_dir = output_dir
-        self.export_keys = set()
-        self.final_csv = []
+    def __init__(self, source_file: str, output_dir: str) -> None:
+        self.source_file: str = source_file
+        self.output_dir: str = output_dir
+        self.export_keys: Set[str] = set()
+        self.final_csv: List[Dict[str, Any]] = []
     
     def sats_to_btc(self, sats: int) -> float:
         """Convert satoshis to BTC."""
@@ -26,7 +27,7 @@ class BaseWalletConverter(ABC):
         """Generate current timestamp for filename."""
         return datetime.now(pytz.utc).strftime("%Y-%m-%d_%H-%M-%S")
     
-    def validate_source_file(self):
+    def validate_source_file(self) -> None:
         """Validate that source file exists and is a CSV."""
         if not os.path.exists(self.source_file):
             raise FileNotFoundError(f"Source file not found: {self.source_file}")
@@ -35,7 +36,7 @@ class BaseWalletConverter(ABC):
         if not self.source_file.lower().endswith('.csv'):
             raise ValueError(f"Source file must be a CSV file: {self.source_file}")
     
-    def ensure_output_dir(self):
+    def ensure_output_dir(self) -> None:
         """Ensure output directory exists."""
         try:
             os.makedirs(self.output_dir, exist_ok=True)
@@ -70,6 +71,10 @@ class BaseWalletConverter(ABC):
             raise RuntimeError(f"Error writing output file: {e}")
     
     @abstractmethod
-    def convert(self):
-        """Convert wallet data to Koinly format. Must be implemented by subclasses."""
+    def convert(self) -> str:
+        """Convert wallet data to Koinly format. Must be implemented by subclasses.
+        
+        Returns:
+            str: Path to the generated output file
+        """
         pass
