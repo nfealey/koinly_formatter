@@ -1,7 +1,10 @@
 import os
 import csv
+import logging
 from typing import Optional
 from .wallet_utils import BaseWalletConverter
+
+logger = logging.getLogger(__name__)
 
 
 class ZeusToKoinly(BaseWalletConverter):
@@ -140,7 +143,7 @@ class ZeusToKoinly(BaseWalletConverter):
                                         raise ValueError(f"Invalid fee value in {csv_type} row {row_num}: '{value}'")
                                 elif key not in convert_keys:
                                     # Log warning but continue processing
-                                    print(f"Warning: Unknown field '{key}' in {csv_type} - skipping")
+                                    logger.debug(f"Unknown field '{key}' in {csv_type} - skipping")
                                     continue
                                 else:
                                     write_key=convert_keys[key]
