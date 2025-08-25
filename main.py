@@ -3,53 +3,116 @@ import importlib
 import tkinter as tk
 from tkinter import filedialog
 from tkinter import messagebox
+from tkinter import ttk
 import os
 import sys
-from typing import Dict
+import threading
+from typing import Dict, Optional
 
 
 class GUI:
     def __init__(self, master: tk.Tk) -> None:
         self.master: tk.Tk = master
         master.title("Koinly Converter")
+        master.geometry("600x500")
+        master.resizable(False, False)
+        
+        # Main frame
+        main_frame = tk.Frame(master, padx=20, pady=20)
+        main_frame.pack(fill=tk.BOTH, expand=True)
 
-        self.source_label = tk.Label(master, text="Select Source File:")
-        self.source_label.pack()
-
-        self.source_entry = tk.Entry(master, width=50)
-        self.source_entry.pack()
-
+        # Source file section
+        source_frame = tk.LabelFrame(main_frame, text="Source File", padx=10, pady=10)
+        source_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        self.source_entry = tk.Entry(source_frame, width=50)
+        self.source_entry.pack(side=tk.LEFT, padx=(0, 10))
+        
         self.browse_button = tk.Button(
-            master, text="Browse", command=self.browse_source
+            source_frame, text="Browse", command=self.browse_source
         )
-        self.browse_button.pack()
+        self.browse_button.pack(side=tk.LEFT)
+        
+        # Validation indicator for source
+        self.source_valid = tk.Label(source_frame, text="", width=2)
+        self.source_valid.pack(side=tk.LEFT, padx=(5, 0))
 
+        # Wallet format section
+        format_frame = tk.LabelFrame(main_frame, text="Wallet Format", padx=10, pady=10)
+        format_frame.pack(fill=tk.X, pady=(0, 10))
+        
         self.format_var: tk.StringVar = tk.StringVar()
         self.wallet_types: Dict[str, str] = {
             "Sparrow Wallet": "supported_wallets.sparrow_to_koinly.SparrowToKoinly",
             "Zeus Wallet": "supported_wallets.zeus_koinly.ZeusToKoinly",
         }
         self.format_var.set(list(self.wallet_types.keys())[0])
-        self.format_label = tk.Label(master, text="Select Format:")
-        self.format_label.pack()
-        self.format_option = tk.OptionMenu(master, self.format_var, *self.wallet_types.keys())
+        self.format_var.trace_add('write', self.on_format_change)
+        
+        self.format_option = tk.OptionMenu(format_frame, self.format_var, *self.wallet_types.keys())
+        self.format_option.config(width=30)
         self.format_option.pack()
+        
+        # Format info label
+        self.format_info = tk.Label(format_frame, text="Single CSV file required", fg="gray")
+        self.format_info.pack(pady=(5, 0))
 
-        self.output_label = tk.Label(master, text="Select Output Directory:")
-        self.output_label.pack()
-
+        # Output directory section
+        output_frame = tk.LabelFrame(main_frame, text="Output Directory", padx=10, pady=10)
+        output_frame.pack(fill=tk.X, pady=(0, 10))
+        
         download_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
-        self.output_entry = tk.Entry(master, width=50)
+        self.output_entry = tk.Entry(output_frame, width=50)
         self.output_entry.insert(0, download_dir)
-        self.output_entry.pack()
-
+        self.output_entry.pack(side=tk.LEFT, padx=(0, 10))
+        
         self.browse_output_button = tk.Button(
-            master, text="Browse", command=self.browse_output
+            output_frame, text="Browse", command=self.browse_output
         )
-        self.browse_output_button.pack()
+        self.browse_output_button.pack(side=tk.LEFT)
+        
+        # Validation indicator for output
+        self.output_valid = tk.Label(output_frame, text="✓", fg="green", width=2)
+        self.output_valid.pack(side=tk.LEFT, padx=(5, 0))
 
-        self.convert_button = tk.Button(master, text="Convert", command=self.convert)
+        # Progress section
+        progress_frame = tk.Frame(main_frame)
+        progress_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        self.progress_bar = ttk.Progressbar(progress_frame, mode='indeterminate')
+        self.progress_bar.pack(fill=tk.X, pady=(0, 10))
+        
+        # Convert button
+        self.convert_button = tk.Button(
+            progress_frame, 
+            text="Convert", 
+            command=self.convert,
+            bg="#4CAF50",
+            fg="white",
+            font=("Arial", 12, "bold"),
+            padx=30,
+            pady=10
+        )
         self.convert_button.pack()
+        
+        # Status bar
+        self.status_frame = tk.Frame(master, bd=1, relief=tk.SUNKEN)
+        self.status_frame.pack(side=tk.BOTTOM, fill=tk.X)
+        
+        self.status_label = tk.Label(
+            self.status_frame, 
+            text="Ready", 
+            anchor=tk.W,
+            padx=10
+        )
+        self.status_label.pack(fill=tk.X)
+        
+        # Bind validation events
+        self.source_entry.bind('<KeyRelease>', self.validate_inputs)
+        self.output_entry.bind('<KeyRelease>', self.validate_inputs)
+        
+        # Initial validation
+        self.validate_inputs()
 
     def browse_source(self) -> None:
         filename = filedialog.askopenfilename(
@@ -59,6 +122,8 @@ class GUI:
         if filename:
             self.source_entry.delete(0, tk.END)
             self.source_entry.insert(tk.END, filename)
+            self.validate_inputs()
+            self.update_status(f"Selected: {os.path.basename(filename)}")
 
     def browse_output(self) -> None:
         directory = filedialog.askdirectory(
@@ -67,87 +132,207 @@ class GUI:
         if directory:
             self.output_entry.delete(0, tk.END)
             self.output_entry.insert(0, directory)
+            self.validate_inputs()
+            self.update_status(f"Output directory: {directory}")
 
-    def convert(self) -> None:
-        source_file = self.source_entry.get()
-        output_dir = self.output_entry.get()
-        format = self.format_var.get()
-        
-        # Validate inputs
-        if not source_file and format != "Zeus Wallet":
-            messagebox.showerror("Error", "Please select a source file")
-            return
-            
-        if not output_dir:
-            messagebox.showerror("Error", "Please select an output directory")
-            return
-            
-        if not os.path.exists(output_dir):
-            messagebox.showerror("Error", f"Output directory does not exist: {output_dir}")
-            return
-            
-        if not os.path.isdir(output_dir):
-            messagebox.showerror("Error", f"Output path is not a directory: {output_dir}")
-            return
-
-        wallet_module, wallet_class = self.wallet_types[self.format_var.get()].rsplit('.', 1)
-        module = importlib.import_module(wallet_module)
-        converter_class = getattr(module, wallet_class)
-        
-        # Special handling for Zeus wallet which needs 3 files
-        if format == "Zeus Wallet":
-            # Show information about Zeus wallet requirements
-            messagebox.showinfo(
-                "Zeus Wallet", 
-                "Zeus wallet requires 3 CSV files:\n\n"
-                "1. invoices.csv - Lightning invoices\n"
-                "2. payments.csv - Lightning payments\n"
-                "3. onchain.csv - On-chain transactions\n\n"
-                "You will be prompted to select each file."
-            )
-            
-            # Ask for the three required files
-            invoices_file = filedialog.askopenfilename(
-                title="Select invoices.csv file",
-                filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
-            )
-            if not invoices_file:
-                messagebox.showwarning("Warning", "invoices.csv file is required for Zeus wallet conversion")
-                return
-                
-            payments_file = filedialog.askopenfilename(
-                title="Select payments.csv file",
-                filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
-            )
-            if not payments_file:
-                messagebox.showwarning("Warning", "payments.csv file is required for Zeus wallet conversion")
-                return
-                
-            onchain_file = filedialog.askopenfilename(
-                title="Select onchain.csv file",
-                filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
-            )
-            if not onchain_file:
-                messagebox.showwarning("Warning", "onchain.csv file is required for Zeus wallet conversion")
-                return
-                
-            converter = converter_class(source_file, output_dir, invoices_file, payments_file, onchain_file)
+    def on_format_change(self, *args) -> None:
+        """Handle wallet format selection changes."""
+        format_type = self.format_var.get()
+        if format_type == "Zeus Wallet":
+            self.format_info.config(text="Requires 3 CSV files (invoices, payments, onchain)")
+            self.source_entry.config(state='disabled')
+            self.browse_button.config(state='disabled')
+            self.source_valid.config(text="")
         else:
-            converter = converter_class(source_file, output_dir)
-
+            self.format_info.config(text="Single CSV file required")
+            self.source_entry.config(state='normal')
+            self.browse_button.config(state='normal')
+            self.validate_inputs()
+    
+    def validate_inputs(self, event=None) -> None:
+        """Validate input fields and update indicators."""
+        format_type = self.format_var.get()
+        
+        # Validate source file
+        if format_type != "Zeus Wallet":
+            source_file = self.source_entry.get()
+            if source_file and os.path.exists(source_file) and source_file.lower().endswith('.csv'):
+                self.source_valid.config(text="✓", fg="green")
+            elif source_file:
+                self.source_valid.config(text="✗", fg="red")
+            else:
+                self.source_valid.config(text="")
+        
+        # Validate output directory
+        output_dir = self.output_entry.get()
+        if output_dir and os.path.exists(output_dir) and os.path.isdir(output_dir):
+            self.output_valid.config(text="✓", fg="green")
+        elif output_dir:
+            self.output_valid.config(text="✗", fg="red")
+        else:
+            self.output_valid.config(text="")
+    
+    def update_status(self, message: str) -> None:
+        """Update the status bar message."""
+        self.status_label.config(text=message)
+        self.master.update_idletasks()
+    
+    def convert(self) -> None:
+        """Run the conversion in a separate thread to keep GUI responsive."""
+        # Disable convert button and start progress
+        self.convert_button.config(state='disabled')
+        self.progress_bar.start(10)
+        self.update_status("Starting conversion...")
+        
+        # Run conversion in separate thread
+        thread = threading.Thread(target=self._convert_thread)
+        thread.daemon = True
+        thread.start()
+    
+    def _convert_thread(self) -> None:
+        """Actual conversion logic running in separate thread."""
         try:
+            source_file = self.source_entry.get()
+            output_dir = self.output_entry.get()
+            format_type = self.format_var.get()
+            
+            # Validate inputs
+            if not source_file and format_type != "Zeus Wallet":
+                self._show_error("Error", "Please select a source file")
+                return
+                
+            if not output_dir:
+                self._show_error("Error", "Please select an output directory")
+                return
+                
+            if not os.path.exists(output_dir):
+                self._show_error("Error", f"Output directory does not exist: {output_dir}")
+                return
+                
+            if not os.path.isdir(output_dir):
+                self._show_error("Error", f"Output path is not a directory: {output_dir}")
+                return
+
+            self.master.after(0, self.update_status, "Loading converter module...")
+            
+            wallet_module, wallet_class = self.wallet_types[format_type].rsplit('.', 1)
+            module = importlib.import_module(wallet_module)
+            converter_class = getattr(module, wallet_class)
+            
+            # Special handling for Zeus wallet which needs 3 files
+            if format_type == "Zeus Wallet":
+                # Show information about Zeus wallet requirements
+                self.master.after(0, self._show_zeus_info)
+            
+                
+                # Get Zeus files using event to wait for GUI thread
+                self.zeus_files = {}
+                self.master.after(0, self._get_zeus_files)
+                
+                # Wait for files to be selected
+                import time
+                while 'complete' not in self.zeus_files:
+                    time.sleep(0.1)
+                
+                if not self.zeus_files.get('success'):
+                    return
+                
+                converter = converter_class(
+                    source_file, output_dir, 
+                    self.zeus_files['invoices'], 
+                    self.zeus_files['payments'], 
+                    self.zeus_files['onchain']
+                )
+            else:
+                converter = converter_class(source_file, output_dir)
+
+            # Run conversion
+            self.master.after(0, self.update_status, "Converting files...")
             output_file = converter.convert()
-            messagebox.showinfo("Success", f"Conversion complete!\n\nOutput saved to:\n{output_file}")
+            
+            # Success
+            self.master.after(0, self._show_success, output_file)
+            
         except FileNotFoundError as e:
-            messagebox.showerror("File Not Found", str(e))
+            self._show_error("File Not Found", str(e))
         except PermissionError as e:
-            messagebox.showerror("Permission Error", str(e))
+            self._show_error("Permission Error", str(e))
         except ValueError as e:
-            messagebox.showerror("Invalid Data", str(e))
+            self._show_error("Invalid Data", str(e))
         except RuntimeError as e:
-            messagebox.showerror("Processing Error", str(e))
+            self._show_error("Processing Error", str(e))
         except Exception as e:
-            messagebox.showerror("Unexpected Error", f"An unexpected error occurred:\n{type(e).__name__}: {str(e)}")
+            self._show_error("Unexpected Error", f"An unexpected error occurred:\n{type(e).__name__}: {str(e)}")
+        finally:
+            # Reset UI
+            self.master.after(0, self._reset_ui)
+
+
+    def _show_zeus_info(self) -> None:
+        """Show Zeus wallet information dialog."""
+        messagebox.showinfo(
+            "Zeus Wallet", 
+            "Zeus wallet requires 3 CSV files:\n\n"
+            "1. invoices.csv - Lightning invoices\n"
+            "2. payments.csv - Lightning payments\n"
+            "3. onchain.csv - On-chain transactions\n\n"
+            "You will be prompted to select each file."
+        )
+    
+    def _get_zeus_files(self) -> None:
+        """Get Zeus wallet files through file dialogs."""
+        # Ask for the three required files
+        invoices_file = filedialog.askopenfilename(
+            title="Select invoices.csv file",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+        )
+        if not invoices_file:
+            messagebox.showwarning("Warning", "invoices.csv file is required for Zeus wallet conversion")
+            self.zeus_files = {'success': False, 'complete': True}
+            return
+            
+        payments_file = filedialog.askopenfilename(
+            title="Select payments.csv file",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+        )
+        if not payments_file:
+            messagebox.showwarning("Warning", "payments.csv file is required for Zeus wallet conversion")
+            self.zeus_files = {'success': False, 'complete': True}
+            return
+            
+        onchain_file = filedialog.askopenfilename(
+            title="Select onchain.csv file",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+        )
+        if not onchain_file:
+            messagebox.showwarning("Warning", "onchain.csv file is required for Zeus wallet conversion")
+            self.zeus_files = {'success': False, 'complete': True}
+            return
+        
+        self.zeus_files = {
+            'invoices': invoices_file,
+            'payments': payments_file,
+            'onchain': onchain_file,
+            'success': True,
+            'complete': True
+        }
+    
+    def _show_error(self, title: str, message: str) -> None:
+        """Show error dialog from thread."""
+        self.master.after(0, messagebox.showerror, title, message)
+        self.master.after(0, self.update_status, f"Error: {title}")
+    
+    def _show_success(self, output_file: str) -> None:
+        """Show success dialog."""
+        messagebox.showinfo("Success", f"Conversion complete!\n\nOutput saved to:\n{output_file}")
+        self.update_status(f"Success! Saved to: {os.path.basename(output_file)}")
+    
+    def _reset_ui(self) -> None:
+        """Reset UI after conversion."""
+        self.progress_bar.stop()
+        self.convert_button.config(state='normal')
+        if not hasattr(self, 'zeus_files') or self.zeus_files.get('success', False):
+            self.update_status("Ready for next conversion")
 
 
 if __name__ == "__main__":
