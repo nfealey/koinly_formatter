@@ -1,24 +1,15 @@
-import datetime
-import pytz
 import os
 import csv
+from .wallet_utils import BaseWalletConverter
 
-class ZeusToKoinly:
+
+class ZeusToKoinly(BaseWalletConverter):
     def __init__(self, source_file, output_dir, invoices_path=None, payments_path=None, onchain_path=None):
-        self.source_file = source_file
-        self.output_dir = output_dir
+        super().__init__(source_file, output_dir)
         self.invoices_path = invoices_path
         self.payments_path = payments_path
         self.onchain_path = onchain_path
-        self.export_keys = set()
-        self.final_csv = []
 
-    def sats_to_BTC(self, sats:int)->float:
-        btc=sats/100000000
-        return btc
-
-    def float_to_str(self, inputfloat:float)->str:
-        return '{:.8f}'.format(inputfloat)
 
     def convert(self):
         # Use provided paths or check for default files
@@ -64,20 +55,20 @@ class ZeusToKoinly:
                 if not file_path.lower().endswith('.csv'):
                     raise ValueError(f"{file_type} file must be a CSV file: {file_path}")
         
-        # a list of keys which can be converted gracefully from import file to output file
-        convert_keys={
-            'Amount Paid (sat)':'Received Amount',
-            'Payment Hash':'TxHash',
-            'Transaction Hash':'TxHash',
-            'Creation Date':'Date',
-            'Timestamp':'Date',
-        }
-        # ignore these keys
-        ignore_keys={'Expiry','Payment Request'} # skip
-        # a list of all keys which will be exported. More is added to this later
-        self.export_keys={'Description','Received Currency','Sent Currency'}
-        # keys which should be concatenated into the notes field
-        notes_keys={'Memo','Note','Destination'}
+            # a list of keys which can be converted gracefully from import file to output file
+            convert_keys={
+                'Amount Paid (sat)':'Received Amount',
+                'Payment Hash':'TxHash',
+                'Transaction Hash':'TxHash',
+                'Creation Date':'Date',
+                'Timestamp':'Date',
+            }
+            # ignore these keys
+            ignore_keys={'Expiry','Payment Request'} # skip
+            # a list of all keys which will be exported. More is added to this later
+            self.export_keys={'Description','Received Currency','Sent Currency'}
+            # keys which should be concatenated into the notes field
+            notes_keys={'Memo','Note','Destination'}
 
             # Process each CSV file
             for csv_type, known_path in known_paths.items():
@@ -86,74 +77,74 @@ class ZeusToKoinly:
                         csvFile = csv.DictReader(file)
                         # read in CSV file line by line
                         for row_num, line in enumerate(csvFile, start=2):  # start=2 because row 1 is headers
-                    notes_field='' # start with a blank notes field
-                    new_line={} # we put output data into here
-                    for key,value in line.items():
-                        write_value=value
-                        write_key=key
-                        if key in ignore_keys:
-                            continue
-                        elif key in notes_keys:
-                            # special handling for "notes" fields
-                            if value.strip()!='':
-                                notes_add='{}:{} + '.format(key,value)
-                                notes_field=notes_field+notes_add
-                            continue
-                            elif key in {'Amount Paid (sat)'} and csv_type=='INVOICES':
-                                # special handling for this field, koinly wants BTC not SATs
-                                try:
-                                    converted=self.sats_to_BTC(int(value))
-                                    write_value=self.float_to_str(converted)
-                                    write_key='Received Amount'
-                                    new_line['Received Currency']='BTC'
-                                except ValueError:
-                                    raise ValueError(f"Invalid amount value in {csv_type} row {row_num}: '{value}'")
-                            elif key in {'Amount Paid (sat)'} and csv_type=='PAYMENTS':
-                                # special handling for this field, koinly wants BTC not SATs
-                                try:
-                                    converted=self.sats_to_BTC(int(value))
-                                    write_value=self.float_to_str(converted)
-                                    write_key='Sent Amount'
-                                    new_line['Sent Currency']='BTC'
-                                except ValueError:
-                                    raise ValueError(f"Invalid amount value in {csv_type} row {row_num}: '{value}'")
-                            elif key=='Amount (sat)':
-                                # special handling for this field, figure out if tx is inbound or outbound
-                                try:
-                                    numbered=int(value)
-                                    if numbered>0:
+                            notes_field='' # start with a blank notes field
+                            new_line={} # we put output data into here
+                            for key,value in line.items():
+                                write_value=value
+                                write_key=key
+                                if key in ignore_keys:
+                                    continue
+                                elif key in notes_keys:
+                                    # special handling for "notes" fields
+                                    if value.strip()!='':
+                                        notes_add='{}:{} + '.format(key,value)
+                                        notes_field=notes_field+notes_add
+                                    continue
+                                elif key in {'Amount Paid (sat)'} and csv_type=='INVOICES':
+                                    # special handling for this field, koinly wants BTC not SATs
+                                    try:
+                                        converted=self.sats_to_btc(int(value))
+                                        write_value=self.format_btc(converted)
                                         write_key='Received Amount'
                                         new_line['Received Currency']='BTC'
-                                    elif numbered<0:
+                                    except ValueError:
+                                        raise ValueError(f"Invalid amount value in {csv_type} row {row_num}: '{value}'")
+                                elif key in {'Amount Paid (sat)'} and csv_type=='PAYMENTS':
+                                    # special handling for this field, koinly wants BTC not SATs
+                                    try:
+                                        converted=self.sats_to_btc(int(value))
+                                        write_value=self.format_btc(converted)
                                         write_key='Sent Amount'
                                         new_line['Sent Currency']='BTC'
-                                    elif numbered==0:
-                                        continue
-                                    converted=abs(self.sats_to_BTC(numbered))
-                                    write_value=self.float_to_str(converted)
-                                except ValueError:
-                                    raise ValueError(f"Invalid amount value in {csv_type} row {row_num}: '{value}'")
-                            elif key=='Total Fees (sat)':
-                                # special handling for this field, koinly wants BTC not SATs
-                                try:
-                                    numbered=int(value)
-                                    if numbered>0: # outgoing payment, you paid a fee
-                                        converted=abs(self.sats_to_BTC(numbered))
-                                        write_value=self.float_to_str(converted)
-                                        write_key='Fee Amount'
-                                except ValueError:
-                                    raise ValueError(f"Invalid fee value in {csv_type} row {row_num}: '{value}'")
-                            elif key not in convert_keys:
-                                # Log warning but continue processing
-                                print(f"Warning: Unknown field '{key}' in {csv_type} - skipping")
-                                continue
-                        else:
-                            write_key=convert_keys[key]
-                        if write_key not in self.export_keys:
-                            self.export_keys.add(write_key)
-                        new_line[write_key]=write_value 
-                        new_line['Description']=notes_field
-                        self.final_csv.append(new_line)
+                                    except ValueError:
+                                        raise ValueError(f"Invalid amount value in {csv_type} row {row_num}: '{value}'")
+                                elif key=='Amount (sat)':
+                            # special handling for this field, figure out if tx is inbound or outbound
+                                    try:
+                                        numbered=int(value)
+                                        if numbered>0:
+                                            write_key='Received Amount'
+                                            new_line['Received Currency']='BTC'
+                                        elif numbered<0:
+                                            write_key='Sent Amount'
+                                            new_line['Sent Currency']='BTC'
+                                        elif numbered==0:
+                                            continue
+                                        converted=abs(self.sats_to_btc(numbered))
+                                        write_value=self.format_btc(converted)
+                                    except ValueError:
+                                        raise ValueError(f"Invalid amount value in {csv_type} row {row_num}: '{value}'")
+                                elif key=='Total Fees (sat)':
+                            # special handling for this field, koinly wants BTC not SATs
+                                    try:
+                                        numbered=int(value)
+                                        if numbered>0: # outgoing payment, you paid a fee
+                                            converted=abs(self.sats_to_btc(numbered))
+                                            write_value=self.format_btc(converted)
+                                            write_key='Fee Amount'
+                                    except ValueError:
+                                        raise ValueError(f"Invalid fee value in {csv_type} row {row_num}: '{value}'")
+                                elif key not in convert_keys:
+                                    # Log warning but continue processing
+                                    print(f"Warning: Unknown field '{key}' in {csv_type} - skipping")
+                                    continue
+                                else:
+                                    write_key=convert_keys[key]
+                                if write_key not in self.export_keys:
+                                    self.export_keys.add(write_key)
+                                new_line[write_key]=write_value 
+                            new_line['Description']=notes_field
+                            self.final_csv.append(new_line)
                         
                 except FileNotFoundError as e:
                     raise FileNotFoundError(f"Cannot read {csv_type} file: {e}")
@@ -161,32 +152,8 @@ class ZeusToKoinly:
                     raise ValueError(f"Invalid CSV format in {csv_type} file at line {row_num}: {e}")
                 except Exception as e:
                     raise RuntimeError(f"Error processing {csv_type} file: {e}")
-            # Validate we have data to export
-            if not self.final_csv:
-                raise ValueError("No transactions found in input files")
-                
-            # write output csv
-            current_datetime = datetime.now(pytz.utc).strftime("%Y-%m-%d_%H-%M-%S")
-            output_file = os.path.join(self.output_dir, f"zeus_wallet_{current_datetime}.csv")
-            
-            try:
-                # Ensure output directory exists
-                os.makedirs(self.output_dir, exist_ok=True)
-                
-                with open(output_file, 'w', newline='', encoding='utf-8') as my_file:
-                    dict_writer = csv.DictWriter(my_file, self.export_keys)
-                    dict_writer.writeheader()
-                    for transaction in self.final_csv:
-                        dict_writer.writerow(transaction)
-                        
-                print(f'Conversion successful! Output saved to: {output_file}')
-                print(f'Total transactions processed: {len(self.final_csv)}')
-                return output_file
-                
-            except PermissionError:
-                raise PermissionError(f"Cannot write to output file: {output_file}. Check file permissions.")
-            except Exception as e:
-                raise RuntimeError(f"Error writing output file: {e}")
+            # Use the base class method to write the CSV
+            return self.write_csv("zeus_wallet")
                 
         except Exception as e:
             # Re-raise exception with context
