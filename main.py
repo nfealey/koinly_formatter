@@ -25,7 +25,7 @@ class GUI:
         self.format_var = tk.StringVar()
         self.wallet_types = {
             "Sparrow Wallet": "supported_wallets.sparrow_to_koinly.SparrowToKoinly",
-            "Zeus Wallet": "supported_wallets.zues_koinly.ZuessToKoinly",
+            "Zeus Wallet": "supported_wallets.zeus_koinly.ZeusToKoinly",
         }
         self.format_var.set(list(self.wallet_types.keys())[0])
         self.format_label = tk.Label(master, text="Select Format:")
@@ -68,11 +68,43 @@ class GUI:
         wallet_module, wallet_class = self.wallet_types[self.format_var.get()].rsplit('.', 1)
         module = importlib.import_module(wallet_module)
         converter_class = getattr(module, wallet_class)
-        converter = converter_class(source_file, output_dir)
+        
+        # Special handling for Zeus wallet which needs 3 files
+        if format == "Zeus Wallet":
+            # Ask for the three required files
+            invoices_file = filedialog.askopenfilename(
+                title="Select invoices.csv file",
+                filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+            )
+            if not invoices_file:
+                messagebox.showwarning("Warning", "invoices.csv file is required")
+                return
+                
+            payments_file = filedialog.askopenfilename(
+                title="Select payments.csv file",
+                filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+            )
+            if not payments_file:
+                messagebox.showwarning("Warning", "payments.csv file is required")
+                return
+                
+            onchain_file = filedialog.askopenfilename(
+                title="Select onchain.csv file",
+                filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+            )
+            if not onchain_file:
+                messagebox.showwarning("Warning", "onchain.csv file is required")
+                return
+                
+            converter = converter_class(source_file, output_dir, invoices_file, payments_file, onchain_file)
+        else:
+            converter = converter_class(source_file, output_dir)
 
-        converter.convert()
-
-        messagebox.showinfo("Success", "Conversion complete!")
+        try:
+            converter.convert()
+            messagebox.showinfo("Success", "Conversion complete!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Conversion failed: {str(e)}")
 
 
 root = tk.Tk()

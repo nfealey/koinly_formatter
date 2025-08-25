@@ -37,7 +37,23 @@ Additional wallet support is planned for future releases.
    cd koinly_formatter
    ```
 
-2. Install required dependencies:
+2. Create a virtual environment (recommended):
+   ```bash
+   # On Windows
+   python -m venv venv
+   venv\Scripts\activate
+
+   # On macOS/Linux
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+3. Install required dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+   Or install dependencies manually:
    ```bash
    pip install pandas pytz
    ```
