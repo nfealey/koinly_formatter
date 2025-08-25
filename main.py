@@ -79,15 +79,16 @@ class GUI:
         )
         self.format_info.pack(pady=(5, 0))
 
-        # Output directory section
+        # Output file section
         output_frame = tk.LabelFrame(
-            main_frame, text="Output Directory", padx=10, pady=10
+            main_frame, text="Output File", padx=10, pady=10
         )
         output_frame.pack(fill=tk.X, pady=(0, 10))
 
-        download_dir = os.path.join(os.path.expanduser("~"), "Downloads")
-        self.output_entry = tk.Entry(output_frame, width=50)
-        self.output_entry.insert(0, download_dir)
+        # Generate initial output filename
+        self.output_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+        self.output_entry = tk.Entry(output_frame, width=50, state='readonly')
+        self.update_output_preview()
         self.output_entry.pack(side=tk.LEFT, padx=(0, 10))
 
         self.browse_output_button = tk.Button(
@@ -112,7 +113,7 @@ class GUI:
             text="Convert",
             command=self.convert,
             bg="#4CAF50",
-            fg="white",
+            fg="black",
             font=("Arial", 12, "bold"),
             padx=30,
             pady=10,
@@ -130,8 +131,9 @@ class GUI:
 
         # Bind validation events
         self.source_entry.bind("<KeyRelease>", self.validate_inputs)
-        self.output_entry.bind("<KeyRelease>", self.validate_inputs)
-
+        self.source_entry.bind("<KeyRelease>", lambda e: self.update_output_preview())
+        self.format_var.trace_add("write", lambda *args: self.update_output_preview())
+        
         # Initial validation
         self.validate_inputs()
 
@@ -145,14 +147,15 @@ class GUI:
             self.source_entry.delete(0, tk.END)
             self.source_entry.insert(tk.END, filename)
             self.validate_inputs()
+            self.update_output_preview()
             self.update_status(f"Selected: {os.path.basename(filename)}")
 
     def browse_output(self) -> None:
         """Open directory dialog to select output directory."""
         directory = filedialog.askdirectory(title="Select Output Directory")
         if directory:
-            self.output_entry.delete(0, tk.END)
-            self.output_entry.insert(0, directory)
+            self.output_dir = directory
+            self.update_output_preview()
             self.validate_inputs()
             self.update_status(f"Output directory: {directory}")
 
@@ -178,6 +181,7 @@ class GUI:
             self.source_entry.config(state="normal")
             self.browse_button.config(state="normal")
             self.validate_inputs()
+            self.update_output_preview()
 
     def validate_inputs(self, event=None) -> None:
         """Validate input fields and update visual indicators.
@@ -204,13 +208,40 @@ class GUI:
                 self.source_valid.config(text="")
 
         # Validate output directory
-        output_dir = self.output_entry.get()
-        if output_dir and os.path.exists(output_dir) and os.path.isdir(output_dir):
+        if hasattr(self, 'output_dir') and os.path.exists(self.output_dir) and os.path.isdir(self.output_dir):
             self.output_valid.config(text="✓", fg="green")
-        elif output_dir:
-            self.output_valid.config(text="✗", fg="red")
         else:
-            self.output_valid.config(text="")
+            self.output_valid.config(text="✗", fg="red")
+
+    def update_output_preview(self) -> None:
+        """Update the output file preview based on current selections."""
+        format_type = self.format_var.get()
+        source_file = self.source_entry.get()
+        
+        # Generate preview filename
+        if format_type == "Sparrow Wallet":
+            prefix = "sparrow_wallet"
+        elif format_type == "Zeus Wallet (3 files)":
+            prefix = "zeus_wallet"
+        elif format_type == "Zeus Wallet (single file)":
+            prefix = "zeus_wallet_single"
+        else:
+            prefix = "output"
+            
+        # Create timestamp
+        from datetime import datetime
+        import pytz
+        timestamp = datetime.now(pytz.utc).strftime("%Y-%m-%d_%H-%M-%S")
+        
+        # Build full output path
+        output_filename = f"{prefix}_{timestamp}.csv"
+        output_path = os.path.join(self.output_dir, output_filename)
+        
+        # Update the entry field
+        self.output_entry.config(state='normal')
+        self.output_entry.delete(0, tk.END)
+        self.output_entry.insert(0, output_path)
+        self.output_entry.config(state='readonly')
 
     def update_status(self, message: str) -> None:
         """Update the status bar message.
@@ -245,7 +276,7 @@ class GUI:
         """
         try:
             source_file = self.source_entry.get()
-            output_dir = self.output_entry.get()
+            output_dir = self.output_dir
             format_type = self.format_var.get()
 
             # Validate inputs
@@ -253,7 +284,7 @@ class GUI:
                 self._show_error("Error", "Please select a source file")
                 return
 
-            if not output_dir:
+            if not hasattr(self, 'output_dir') or not self.output_dir:
                 self._show_error("Error", "Please select an output directory")
                 return
 
