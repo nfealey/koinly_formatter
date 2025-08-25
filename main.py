@@ -61,7 +61,8 @@ class GUI:
         self.format_var: tk.StringVar = tk.StringVar()
         self.wallet_types: Dict[str, str] = {
             "Sparrow Wallet": "supported_wallets.sparrow_to_koinly.SparrowToKoinly",
-            "Zeus Desktop Wallet": "supported_wallets.zeus_koinly.ZeusToKoinly",
+            "Zeus Wallet (3 files)": "supported_wallets.zeus_koinly.ZeusToKoinly",
+            "Zeus Wallet (single file)": "supported_wallets.zeus_single_file.ZeusSingleFileToKoinly",
         }
         self.format_var.set(list(self.wallet_types.keys())[0])
         self.format_var.trace_add("write", self.on_format_change)
@@ -165,7 +166,7 @@ class GUI:
             *args: Unused arguments from StringVar trace
         """
         format_type = self.format_var.get()
-        if format_type == "Zeus Wallet":
+        if format_type == "Zeus Wallet (3 files)":
             self.format_info.config(
                 text="Requires 3 CSV files (invoices, payments, onchain)"
             )
@@ -189,7 +190,7 @@ class GUI:
         format_type = self.format_var.get()
 
         # Validate source file
-        if format_type != "Zeus Wallet":
+        if format_type != "Zeus Wallet (3 files)":
             source_file = self.source_entry.get()
             if (
                 source_file
@@ -248,7 +249,7 @@ class GUI:
             format_type = self.format_var.get()
 
             # Validate inputs
-            if not source_file and format_type != "Zeus Wallet":
+            if not source_file and format_type != "Zeus Wallet (3 files)":
                 self._show_error("Error", "Please select a source file")
                 return
 
@@ -275,7 +276,7 @@ class GUI:
             converter_class = getattr(module, wallet_class)
 
             # Special handling for Zeus wallet which needs 3 files
-            if format_type == "Zeus Wallet":
+            if format_type == "Zeus Wallet (3 files)":
                 # Show information about Zeus wallet requirements
                 self.master.after(0, self._show_zeus_info)
 
