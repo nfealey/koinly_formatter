@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import filedialog
 from tkinter import messagebox
 import os
+import sys
 
 
 class GUI:
@@ -51,19 +52,43 @@ class GUI:
         self.convert_button.pack()
 
     def browse_source(self):
-        filename = filedialog.askopenfilename()
-        self.source_entry.delete(0, tk.END)
-        self.source_entry.insert(tk.END, filename)
+        filename = filedialog.askopenfilename(
+            title="Select Source CSV File",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+        )
+        if filename:
+            self.source_entry.delete(0, tk.END)
+            self.source_entry.insert(tk.END, filename)
 
     def browse_output(self):
-        directory = filedialog.askdirectory()
-        self.output_entry.delete(0, tk.END)
-        self.output_entry.insert(0, directory)
+        directory = filedialog.askdirectory(
+            title="Select Output Directory"
+        )
+        if directory:
+            self.output_entry.delete(0, tk.END)
+            self.output_entry.insert(0, directory)
 
     def convert(self):
         source_file = self.source_entry.get()
         output_dir = self.output_entry.get()
         format = self.format_var.get()
+        
+        # Validate inputs
+        if not source_file and format != "Zeus Wallet":
+            messagebox.showerror("Error", "Please select a source file")
+            return
+            
+        if not output_dir:
+            messagebox.showerror("Error", "Please select an output directory")
+            return
+            
+        if not os.path.exists(output_dir):
+            messagebox.showerror("Error", f"Output directory does not exist: {output_dir}")
+            return
+            
+        if not os.path.isdir(output_dir):
+            messagebox.showerror("Error", f"Output path is not a directory: {output_dir}")
+            return
 
         wallet_module, wallet_class = self.wallet_types[self.format_var.get()].rsplit('.', 1)
         module = importlib.import_module(wallet_module)
@@ -71,13 +96,23 @@ class GUI:
         
         # Special handling for Zeus wallet which needs 3 files
         if format == "Zeus Wallet":
+            # Show information about Zeus wallet requirements
+            messagebox.showinfo(
+                "Zeus Wallet", 
+                "Zeus wallet requires 3 CSV files:\n\n"
+                "1. invoices.csv - Lightning invoices\n"
+                "2. payments.csv - Lightning payments\n"
+                "3. onchain.csv - On-chain transactions\n\n"
+                "You will be prompted to select each file."
+            )
+            
             # Ask for the three required files
             invoices_file = filedialog.askopenfilename(
                 title="Select invoices.csv file",
                 filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
             )
             if not invoices_file:
-                messagebox.showwarning("Warning", "invoices.csv file is required")
+                messagebox.showwarning("Warning", "invoices.csv file is required for Zeus wallet conversion")
                 return
                 
             payments_file = filedialog.askopenfilename(
@@ -85,7 +120,7 @@ class GUI:
                 filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
             )
             if not payments_file:
-                messagebox.showwarning("Warning", "payments.csv file is required")
+                messagebox.showwarning("Warning", "payments.csv file is required for Zeus wallet conversion")
                 return
                 
             onchain_file = filedialog.askopenfilename(
@@ -93,7 +128,7 @@ class GUI:
                 filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
             )
             if not onchain_file:
-                messagebox.showwarning("Warning", "onchain.csv file is required")
+                messagebox.showwarning("Warning", "onchain.csv file is required for Zeus wallet conversion")
                 return
                 
             converter = converter_class(source_file, output_dir, invoices_file, payments_file, onchain_file)
@@ -101,12 +136,25 @@ class GUI:
             converter = converter_class(source_file, output_dir)
 
         try:
-            converter.convert()
-            messagebox.showinfo("Success", "Conversion complete!")
+            output_file = converter.convert()
+            messagebox.showinfo("Success", f"Conversion complete!\n\nOutput saved to:\n{output_file}")
+        except FileNotFoundError as e:
+            messagebox.showerror("File Not Found", str(e))
+        except PermissionError as e:
+            messagebox.showerror("Permission Error", str(e))
+        except ValueError as e:
+            messagebox.showerror("Invalid Data", str(e))
+        except RuntimeError as e:
+            messagebox.showerror("Processing Error", str(e))
         except Exception as e:
-            messagebox.showerror("Error", f"Conversion failed: {str(e)}")
+            messagebox.showerror("Unexpected Error", f"An unexpected error occurred:\n{type(e).__name__}: {str(e)}")
 
 
-root = tk.Tk()
-my_gui = GUI(root)
-root.mainloop()
+if __name__ == "__main__":
+    try:
+        root = tk.Tk()
+        my_gui = GUI(root)
+        root.mainloop()
+    except Exception as e:
+        print(f"Fatal error: {e}", file=sys.stderr)
+        sys.exit(1)
